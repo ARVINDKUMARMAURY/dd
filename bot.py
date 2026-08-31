@@ -16,8 +16,8 @@ from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 from telethon.errors import FloodWaitError
 
-from py_tgcalls import PyTgCalls
-from py_tgcalls.types import AudioPiped
+from pytgcalls import PyTgCalls
+from pytgcalls.types import AudioPiped
 
 # ========== CONFIGURATION (from ENV) ==========
 BOT_TOKEN = None  # Not used (we use user account)
