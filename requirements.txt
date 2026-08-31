@@ -1,9 +1,4 @@
-pyrogram>=2.0.0
-
-# Voice Chat Library
-pytgcalls>=3.0.0
-py-tgcalls>=3.0.0
-tgcalls>=3.0.0
-
-# Audio Processing
+telethon>=1.28.0,<2.0.0
+pytgcalls>=3.0.0,<4.0.0
 numpy>=1.21.0
+aiohttp>=3.8.0
