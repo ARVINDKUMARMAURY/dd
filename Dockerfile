@@ -11,12 +11,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Install Python packages directly (no requirements.txt dependency hell)
+# Install Python packages with pinned versions
 RUN pip install --no-cache-dir \
-    git+https://github.com/pytgcalls/pytgcalls.git \
-    telethon>=1.28.0 \
-    numpy>=1.21.0 \
-    aiohttp>=3.8.0
+    py-tgcalls==2.2.12 \
+    telethon==1.34.0 \
+    numpy==1.26.4 \
+    aiohttp==3.9.5
 
 # Copy your bot code
 COPY bot.py .
