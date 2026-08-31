@@ -215,7 +215,7 @@ async def start_cmd(event):
 🤖 **VC Disruptor Bot (Telethon) - Railway Edition**
 
 🎯 `/target <link>` — Set target group
-⚔️ `/attack` — Start attack
+⚔️ `/ttack` — Start attack
 ⏹️ `/stop` — Stop attack
 📊 `/status` — Check status
 📋 `/settings` — View settings
@@ -279,16 +279,16 @@ async def target_cmd(event):
 
 @owner_only
 async def attack_cmd(event):
-    if bot_state["is_attacking"]:
-        await event.reply("⚠️ Attack already running!")
+    if bot_state["is_ttacking"]:
+        await event.reply("⚠️ ttack already running!")
         return
 
     if not bot_state["target_id"]:
-        await event.reply("❌ No target set! Use /target first.")
+        await event.reply("❌ No target set! Use /arget first.")
         return
 
     chat_id = bot_state["target_id"]
-    await event.reply(f"🚀 **Attacking {bot_state['target_name']}...**")
+    await event.reply(f"🚀 **Attacking {bot_state['arget_name']}...**")
 
     bot_state["is_attacking"] = True
     bot_state["status"] = "attacking"
@@ -332,8 +332,8 @@ async def attack_cmd(event):
 
         stop_udp_flood(stop_event)
 
-        elapsed = int(time.time() - bot_state["attack_start"])
-        await event.reply(f"[✅] Attack complete! Duration: {elapsed}s")
+        elapsed = int(time.time() - bot_state["ttack_start"])
+        await event.reply(f"[✅] ttack complete! Duration: {elapsed}s")
 
     except Exception as e:
         await event.reply(f"[❌] Error: {e}")
@@ -343,8 +343,8 @@ async def attack_cmd(event):
 
 @owner_only
 async def stop_cmd(event):
-    if not bot_state["is_attacking"]:
-        await event.reply("ℹ️ No active attack.")
+    if not bot_state["is_ttacking"]:
+        await event.reply("ℹ️ No active ttack.")
         return
 
     if bot_state.get("stop_event"):
@@ -358,7 +358,7 @@ async def stop_cmd(event):
     bot_state["is_attacking"] = False
     bot_state["status"] = "idle"
     bot_state["stop_event"] = None
-    await event.reply("[⏹️] Attack stopped.")
+    await event.reply("[⏹️] ttack stopped.")
 
 @owner_only
 async def settings_cmd(event):
