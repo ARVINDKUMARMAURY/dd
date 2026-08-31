@@ -1,0 +1,9 @@
+pyrogram>=2.0.0
+
+# Voice Chat Library
+pytgcalls>=3.0.0
+py-tgcalls>=3.0.0
+tgcalls>=3.0.0
+
+# Audio Processing
+numpy>=1.21.0
